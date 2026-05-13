@@ -1,0 +1,16 @@
+pbj
+*.o
+*.a
+*.dSYM/
+tests/out/
+bench/out/
+*.fq
+*.fastq
+*.fq.gz
+*.fastq.gz
+!tests/fixtures/**/*.fq
+!tests/fixtures/**/*.fastq
+.DS_Store
+compile_commands.json
+*.plist
+__pycache__/

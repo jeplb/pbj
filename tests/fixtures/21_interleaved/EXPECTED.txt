@@ -1,0 +1,4 @@
+merged=3
+unassembled=0
+input_file=INTERLEAVED.fq
+pbj_flags=--interleaved-in

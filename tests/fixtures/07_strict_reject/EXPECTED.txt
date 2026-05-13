@@ -1,0 +1,3 @@
+merged=0
+unassembled=1
+pbj_flags=--strict

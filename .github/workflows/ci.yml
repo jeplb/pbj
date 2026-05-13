@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install zlib (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+
+      - name: build (release)
+        run: make
+
+      - name: run fixture tests
+        run: make test
+
+      - name: build (debug, sanitizers)
+        run: |
+          make clean
+          make debug
+
+      - name: run fixture tests under sanitizers
+        run: make test
+
+  static-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install musl + zlib static
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools zlib1g-dev
+      - name: static build
+        run: CC=musl-gcc make CFLAGS="-O3 -Wall -Wextra -std=c11 -static -pthread"
+      - name: smoke test
+        run: ./pbj --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pbj-linux-x86_64-static
+          path: pbj
