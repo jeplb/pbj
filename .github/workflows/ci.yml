@@ -35,16 +35,17 @@ jobs:
 
   static-linux:
     runs-on: ubuntu-latest
+    container: alpine:3.20
     steps:
+      - name: install build deps
+        run: apk add --no-cache build-base musl-dev zlib-dev zlib-static make
       - uses: actions/checkout@v4
-      - name: install musl + zlib static
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools zlib1g-dev
       - name: static build
-        run: CC=musl-gcc make CFLAGS="-O3 -Wall -Wextra -std=c11 -static -pthread"
+        run: make CFLAGS="-O3 -Wall -Wextra -std=c11 -static -pthread"
       - name: smoke test
         run: ./pbj --version
+      - name: verify static linking
+        run: file pbj && (ldd pbj 2>&1 || true)
       - uses: actions/upload-artifact@v4
         with:
           name: pbj-linux-x86_64-static
