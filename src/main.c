@@ -1,3 +1,8 @@
+/* request posix.1-2008 for clock_gettime / clock_monotonic.
+   glibc exposes these by default; musl requires an explicit feature
+   test macro under -std=c11. */
+#define _POSIX_C_SOURCE 200809L
+
 #include "pbj.h"
 #include "fastq.h"
 #include "revcomp.h"
