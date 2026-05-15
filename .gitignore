@@ -3,6 +3,8 @@ pbj
 *.a
 *.dSYM/
 tests/out/
+tests/unit/test_unit
+tests/unit/test_edge_cases
 bench/out/
 *.fq
 *.fastq

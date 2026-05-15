@@ -4,7 +4,9 @@ A fast paired-end FASTQ read merger in C. Drop-in alternative to PEAR and
 BBmerge with a single static binary and no runtime dependencies beyond
 `zlib`, `pthread`, and libc. MIT licensed.
 
-The name stands for **P**EAR + **B**Bmerge **J**oined.
+The name stands for **P**aired-end **B**inomial **J**oiner, after the
+seed-adjusted binomial test the merger uses to accept or reject each
+overlap candidate.
 
 ## What it does
 
