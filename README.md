@@ -4,7 +4,9 @@ A fast paired-end FASTQ read merger in C. Drop-in alternative to PEAR and
 BBmerge with a single static binary and no runtime dependencies beyond
 `zlib`, `pthread`, and libc. MIT licensed.
 
-The name stands for **P**EAR + **B**Bmerge **J**oined.
+The name stands for **P**aired-end **B**inomial **J**oiner, after the
+seed-adjusted binomial test the merger uses to accept or reject each
+overlap candidate.
 
 ## What it does
 
@@ -48,9 +50,9 @@ pbj -f R1.fq.gz -r R2.fq.gz -o sample
 
 Produces three files under the `-o` prefix:
 
-- `sample.assembled.fastq` &mdash; merged reads
-- `sample.unassembled.forward.fastq` &mdash; R1 of pairs that didn't merge
-- `sample.unassembled.reverse.fastq` &mdash; R2 of those pairs
+- `sample.assembled.fastq`: merged reads
+- `sample.unassembled.forward.fastq`: R1 of pairs that didn't merge
+- `sample.unassembled.reverse.fastq`: R2 of those pairs
 
 Add `-z` to gzip-compress all three outputs. Input is read transparently
 whether `.fq` or `.fq.gz`. Output qualities are always written in
@@ -146,7 +148,7 @@ pbj -f R1.fq.gz -r R2.fq.gz -o sample -s --strict-q 25
 | `--adapter-min-match N` | 8 | min bp of adapter overlap to trigger trim |
 | `--adapter-match-frac F` | 0.9 | min match fraction over the adapter overlap |
 | `-Q, --min-mean-qual N` | 0 (off) | reject if mean merged Phred below N |
-| `--max-ee F` | 0 (off) | reject if expected errors `Σ 10^(-q/10)` exceeds F |
+| `--max-ee F` | 0 (off) | reject if expected errors `sum(10^(-q/10))` exceeds F |
 | `--max-mono-frac F` | 0 (off) | reject if any single base exceeds fraction F |
 | `--qtrim N` | 0 (off) | trim merged 3' bases below Phred N |
 | `-t, --threads N` | 1 | worker threads |
@@ -159,8 +161,8 @@ pbj -f R1.fq.gz -r R2.fq.gz -o sample -s --strict-q 25
 
 For each pair, pbj writes to one of three files:
 
-- successful merge &rarr; `*.assembled.fastq[.gz]` with the consensus sequence
-- failed merge (no overlap, low quality, filter rejection) &rarr;
+- successful merge -> `*.assembled.fastq[.gz]` with the consensus sequence
+- failed merge (no overlap, low quality, filter rejection) ->
   `*.unassembled.forward.fastq[.gz]` (R1) and
   `*.unassembled.reverse.fastq[.gz]` (R2)
 
@@ -217,7 +219,7 @@ in this order:
 
 1. `--qtrim N` strips 3' bases with Phred below N. If trimming brings
    the merged length below `--min-length`, the merge is rejected.
-2. `--max-ee F` rejects if `Σ 10^(-q/10)` over the trimmed merged read
+2. `--max-ee F` rejects if `sum(10^(-q/10))` over the trimmed merged read
    exceeds F (USEARCH/vsearch convention).
 3. `--max-mono-frac F` rejects if any of A, C, G, T, or N exceeds
    fraction F (catches homopolymers and N-rich reads).
@@ -236,7 +238,7 @@ read length, accept some loss, or lower both `-k` and `-m` together
 
 `p_match = 0.25` assumes uniform A/C/G/T composition. For GC-biased
 pools (DNA-storage oligos, primer-heavy amplicons), set `--p-match` to
-`Σ f_i²` over the four base frequencies in your data.
+`sum(f_i^2)` over the four base frequencies in your data.
 
 ## Performance
 

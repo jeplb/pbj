@@ -20,16 +20,32 @@ native: pbj
 
 debug: CFLAGS = -O0 -g -Wall -Wextra -std=c11 -pthread -fsanitize=address,undefined
 debug: LDFLAGS += -fsanitize=address,undefined
-debug: pbj
+debug: pbj tests/unit/test_unit tests/unit/test_edge_cases
+
+UNIT_TEST_OBJS = src/fastq.o src/revcomp.o src/overlap.o src/score.o \
+                 src/stats.o src/merge.o src/adapter.o
+UNIT_TEST_HDRS = $(HDRS) tests/unit/test_helpers.h
+
+tests/unit/test_unit: tests/unit/test_unit.c $(UNIT_TEST_OBJS) $(UNIT_TEST_HDRS)
+	$(CC) $(CFLAGS) -o $@ tests/unit/test_unit.c $(UNIT_TEST_OBJS) \
+		$(LDFLAGS) $(LDLIBS)
+
+tests/unit/test_edge_cases: tests/unit/test_edge_cases.c $(UNIT_TEST_OBJS) $(UNIT_TEST_HDRS)
+	$(CC) $(CFLAGS) -o $@ tests/unit/test_edge_cases.c $(UNIT_TEST_OBJS) \
+		$(LDFLAGS) $(LDLIBS)
 
 clean:
-	rm -f src/*.o pbj
+	rm -f src/*.o pbj tests/unit/test_unit tests/unit/test_edge_cases
 	rm -rf tests/out
 
-test: pbj
+test: pbj unit-test
 	./tests/run_tests.sh
+
+unit-test: tests/unit/test_unit tests/unit/test_edge_cases
+	./tests/unit/test_unit
+	./tests/unit/test_edge_cases
 
 bench: pbj
 	./bench/throughput.sh
 
-.PHONY: all clean test bench native debug
+.PHONY: all clean test unit-test bench native debug
