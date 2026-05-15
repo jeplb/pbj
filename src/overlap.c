@@ -4,15 +4,22 @@
 #include <string.h>
 #include <stdio.h>
 
+/* generation-counter scheme: instead of memset'ing the table to "empty"
+   between pairs, bump cur_gen. a slot is occupied iff entry.gen ==
+   cur_gen. on uint32 wrap we do a full reset. the gen field reuses the
+   4 bytes of struct padding that would exist otherwise (uint64 + int32
+   already round to 16). */
 typedef struct {
     uint64_t kmer;
-    int32_t  pos;       /* -1 = empty slot */
+    int32_t  pos;
+    uint32_t gen;
 } kmer_entry_t;
 
 typedef struct {
     kmer_entry_t *table;
     int           size;
     int           mask;
+    uint32_t      cur_gen;
 } kmer_index_t;
 
 static inline int encode_base(int c) {
@@ -53,7 +60,10 @@ void pbj_overlap_init(pbj_workspace_t *ws, const pbj_params_t *p) {
     ki->size  = 16384;
     ki->mask  = ki->size - 1;
     ki->table = (kmer_entry_t*)xmalloc((size_t)ki->size * sizeof(kmer_entry_t));
-    for (int i = 0; i < ki->size; i++) ki->table[i].pos = -1;
+    /* gen 0 in every slot vs cur_gen starting at 1 means all slots
+       initially read as empty without an O(size) zero pass. */
+    for (int i = 0; i < ki->size; i++) ki->table[i].gen = 0;
+    ki->cur_gen = 1;
     ws->kmer_index = ki;
     ws->candidates_cap = 256;
     ws->candidates = (int*)xmalloc((size_t)ws->candidates_cap * sizeof(int));
@@ -119,8 +129,19 @@ int pbj_overlap_candidates(pbj_workspace_t *ws,
         ki->table = (kmer_entry_t*)xmalloc((size_t)wanted * sizeof(kmer_entry_t));
         ki->size  = wanted;
         ki->mask  = wanted - 1;
+        /* fresh allocation: zero gen so every slot starts as empty
+           relative to any cur_gen >= 1. */
+        for (int i = 0; i < ki->size; i++) ki->table[i].gen = 0;
     }
-    for (int i = 0; i < ki->size; i++) ki->table[i].pos = -1;
+    /* mark every previous-batch entry as stale by bumping the generation.
+       on uint32 wrap (extremely rare in practice; would require ~4
+       billion pairs in one process) fall back to a full zero pass and
+       restart at 1. */
+    ki->cur_gen++;
+    if (ki->cur_gen == 0) {
+        for (int i = 0; i < ki->size; i++) ki->table[i].gen = 0;
+        ki->cur_gen = 1;
+    }
 
     uint64_t mask_k = (k >= 32) ? ~0ULL : ((1ULL << (2 * k)) - 1);
 
@@ -135,11 +156,12 @@ int pbj_overlap_candidates(pbj_workspace_t *ws,
         if (valid >= k) {
             int pos = i - k + 1;
             uint32_t h = hash_u64(kmer) & (uint32_t)ki->mask;
-            while (ki->table[h].pos != -1) {
+            while (ki->table[h].gen == ki->cur_gen) {
                 h = (h + 1) & (uint32_t)ki->mask;
             }
             ki->table[h].kmer = kmer;
             ki->table[h].pos  = pos;
+            ki->table[h].gen  = ki->cur_gen;
         }
     }
 
@@ -171,7 +193,7 @@ int pbj_overlap_candidates(pbj_workspace_t *ws,
         if (valid >= k) {
             int pos2 = i - k + 1;
             uint32_t h = hash_u64(kmer) & (uint32_t)ki->mask;
-            while (ki->table[h].pos != -1) {
+            while (ki->table[h].gen == ki->cur_gen) {
                 if (ki->table[h].kmer == kmer) {
                     int s = ki->table[h].pos - pos2;
                     if (s >= min_s && s <= max_s) {

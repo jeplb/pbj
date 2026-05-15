@@ -12,6 +12,26 @@
 
 #define MAX_PHRED 93
 
+/* precomputed 10^(-q/10) for q in [0, MAX_PHRED]. populated lazily on
+   first merge call (which runs before any worker threads are spawned via
+   pbj_workspace_init's call site, so no race in practice). */
+static double g_phred_err[MAX_PHRED + 1];
+static int    g_phred_err_init = 0;
+
+static void ensure_phred_err_table(void) {
+    if (g_phred_err_init) return;
+    for (int q = 0; q <= MAX_PHRED; q++) {
+        g_phred_err[q] = pow(10.0, -(double)q / 10.0);
+    }
+    g_phred_err_init = 1;
+}
+
+static inline double phred_err(int q) {
+    if (q < 0) q = 0;
+    if (q > MAX_PHRED) q = MAX_PHRED;
+    return g_phred_err[q];
+}
+
 /* posterior probability that the picked (higher-q) base is the true base
    given that the two reads disagree, under independent-error model and
    uniform prior over the four bases. derived from bayes rule with
@@ -25,8 +45,8 @@
    special functions beyond pow / log10. */
 static int bayesian_mismatch_quality(int q_picked, int q_other) {
     if (q_picked <= 0 && q_other <= 0) return 0;
-    double e1 = pow(10.0, -(double)q_picked / 10.0);
-    double e2 = pow(10.0, -(double)q_other  / 10.0);
+    double e1 = phred_err(q_picked);
+    double e2 = phred_err(q_other);
     double w_picked = (1.0 - e1) * (e2 / 3.0);
     double w_other  = (e1 / 3.0) * (1.0 - e2);
     double w_third  = (e1 / 3.0) * (e2 / 3.0);
@@ -72,6 +92,7 @@ void pbj_try_merge(const pbj_read_t *r1,
                    pbj_workspace_t *ws,
                    const pbj_params_t *p,
                    pbj_merge_result_t *result) {
+    ensure_phred_err_table();
     result->status          = PBJ_NO_CANDIDATE;
     result->matches         = 0;
     result->mismatches      = 0;
@@ -299,8 +320,7 @@ void pbj_try_merge(const pbj_read_t *r1,
         double ee = 0.0;
         for (int i = 0; i < merged_len; i++) {
             int q = (int)(unsigned char)out_q[i] - 33;
-            if (q < 0) q = 0;
-            ee += pow(10.0, -(double)q / 10.0);
+            ee += phred_err(q);
         }
         result->expected_errors = ee;
         if (ee > p->max_ee) {

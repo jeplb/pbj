@@ -16,8 +16,8 @@ longer consensus read. The non-overlapping pairs pass through unchanged
 into separate "unassembled" outputs.
 
 Typical merge rates on real Illumina 2x150 with ~250bp inserts run
-99%+ at default settings. The merger is fork-join parallel; throughput
-scales near-linearly to ~8 threads.
+99%+ at default settings. The merger is pipelined and multi-threaded;
+throughput scales to ~4-8 cores depending on read length.
 
 ## Install
 
@@ -242,12 +242,18 @@ pools (DNA-storage oligos, primer-heavy amplicons), set `--p-match` to
 
 ## Performance
 
-Single-threaded throughput on a recent x86 desktop runs ~130K pairs/sec
-on 150bp reads and ~95K pairs/sec on 300bp reads. Multi-threaded
-fork-join scales near-linearly to 8 threads (~470K pairs/sec on 150bp).
-The benchmark script is at `bench/throughput.sh`.
+Single-threaded throughput on a recent x86 desktop runs ~320K pairs/sec
+on 2x150bp reads at default settings. Multi-threaded climbs to ~470K
+at `-t 4` and ~510K at `-t 8` on the same workload; the single-thread
+number is already high enough that adding cores past ~4 has diminishing
+returns. The benchmark script is at `bench/throughput.sh`.
 
-Memory is bounded by per-thread workspace plus a per-batch buffer.
+Internals: a dedicated reader thread fills a 2-slot batch ring while
+a persistent worker pool processes the previous batch and the main
+thread writes output. The kmer hash uses a generation counter so the
+table is invalidated between pairs in O(1) instead of being zeroed.
+
+Memory is bounded by the 2-slot input ring plus per-thread workspace.
 Default `--batch-size 1024 -t 4` runs in well under 100 MiB.
 
 ## Limits
